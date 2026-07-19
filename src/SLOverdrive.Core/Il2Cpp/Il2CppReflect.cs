@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace SLOverdrive.Core.Il2Cpp
 {
@@ -79,6 +80,66 @@ namespace SLOverdrive.Core.Il2Cpp
 
             try { return method?.Invoke(list, new object[] { index }); }
             catch { return null; }
+        }
+
+        /// <summary>
+        /// Walks an Il2Cpp collection.
+        ///
+        /// Il2Cpp dictionaries and sets do not implement the managed IEnumerable that
+        /// foreach expects, so they have to be driven by hand through their own
+        /// GetEnumerator / MoveNext / Current triple.
+        /// </summary>
+        public static IEnumerable<object> Enumerate(object collection)
+        {
+            if (collection == null) yield break;
+
+            // A managed enumerable, if we are lucky.
+            if (collection is System.Collections.IEnumerable managed)
+            {
+                foreach (var item in managed) yield return item;
+                yield break;
+            }
+
+            var getEnumerator = collection.GetType().GetMethod("GetEnumerator", Type.EmptyTypes);
+            if (getEnumerator == null) yield break;
+
+            object enumerator;
+            try { enumerator = getEnumerator.Invoke(collection, null); }
+            catch { yield break; }
+
+            if (enumerator == null) yield break;
+
+            var type = enumerator.GetType();
+            var moveNext = type.GetMethod("MoveNext", Type.EmptyTypes);
+            var current = type.GetProperty("Current") ?? type.GetProperty("get_Current");
+
+            if (moveNext == null || current == null) yield break;
+
+            while (true)
+            {
+                object more;
+                try { more = moveNext.Invoke(enumerator, null); }
+                catch { yield break; }
+
+                if (!(more is bool advanced) || !advanced) yield break;
+
+                object value;
+                try { value = current.GetValue(enumerator); }
+                catch { yield break; }
+
+                yield return value;
+            }
+        }
+
+        /// <summary>Keys of an Il2Cpp dictionary, as strings.</summary>
+        public static IEnumerable<string> DictionaryKeys(object dictionary)
+        {
+            var keys = GetMember(dictionary, "Keys");
+            if (keys == null) yield break;
+
+            foreach (var key in Enumerate(keys))
+                if (key != null)
+                    yield return key.ToString();
         }
     }
 }

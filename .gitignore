@@ -18,6 +18,7 @@ cpp2il_out/
 BepInEx/
 DummyDll/
 dump.cs
+editor/
 
 # Logs
 *.log

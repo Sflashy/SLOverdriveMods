@@ -1,0 +1,21 @@
+# Normalise line endings so the repository stores LF and Windows checkouts get CRLF.
+# Without this, editing a file on Windows shows every line as changed.
+* text=auto
+
+# Windows-only tooling that should stay CRLF in the working tree.
+*.sln       text eol=crlf
+*.csproj    text eol=crlf
+*.props     text eol=crlf
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+
+# Shell scripts must stay LF or they will not run.
+*.sh        text eol=lf
+
+# Data and binaries git should not touch.
+*.json      text
+*.csv       text
+*.md        text
+*.png       binary
+*.dll       binary
+*.exe       binary

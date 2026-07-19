@@ -46,6 +46,11 @@ namespace SLOverdrive.TableDumper
                 "to leave running - it patches every table row loader and slows startup. " +
                 "Switch it on when you need a dump, then switch it back off.");
 
+            var sheetMode = Config.Bind("General", "SheetMode", true,
+                "Dump whole data sheets instead of typed rows. This catches every table, " +
+                "including ones with no row class such as the localisation text, and gives " +
+                "the sheet's real column names rather than obfuscated field names.");
+
             _typeNames = Config.Bind("General", "Types", "AJIHKOOLMFK",
                 "Comma separated row class names to dump. These are obfuscated and change " +
                 "between game builds. Use '*' to dump every table - slow, and produces a lot of files.");
@@ -68,6 +73,13 @@ namespace SLOverdrive.TableDumper
 
             Directory.CreateDirectory(_outputPath);
             Log.LogInfo($"Writing table dumps to {_outputPath}");
+
+            if (sheetMode.Value)
+            {
+                SheetDumper.Initialize(_outputPath, _maxRowsPerTable.Value, Log);
+                PatchSheetLoader();
+                return;
+            }
 
             PatchLoaders();
         }
@@ -102,6 +114,38 @@ namespace SLOverdrive.TableDumper
                 }
 
                 TryPatch(harmony, postfix, type);
+            }
+        }
+
+        /// <summary>
+        /// Patches <c>GLDataSheet.LoadBin</c>, which every table passes through
+        /// regardless of whether it has a typed row class.
+        /// </summary>
+        private void PatchSheetLoader()
+        {
+            var type = TypeResolver.Find("NLib.GLDataSheet");
+            if (type == null)
+            {
+                Log.LogError("NLib.GLDataSheet not found - cannot dump in sheet mode.");
+                return;
+            }
+
+            var target = AccessTools.Method(type, "LoadBin");
+            if (target == null)
+            {
+                Log.LogError("GLDataSheet.LoadBin not found.");
+                return;
+            }
+
+            try
+            {
+                var postfix = AccessTools.Method(typeof(SheetDumper), nameof(SheetDumper.Postfix));
+                new Harmony(Guid).Patch(target, postfix: new HarmonyMethod(postfix));
+                Log.LogInfo("Sheet mode: dumping every table as it loads.");
+            }
+            catch (Exception ex)
+            {
+                Log.LogError("Could not patch GLDataSheet.LoadBin: " + ex.Message);
             }
         }
 
