@@ -1,0 +1,45 @@
+<Project>
+
+  <!-- Shared settings for every project in this repository. -->
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <Authors>sflashy</Authors>
+    <Product>Solo Leveling: ARISE OVERDRIVE Mods</Product>
+    <Version>1.0.0</Version>
+
+    <!-- BepInEx packages are not on nuget.org. -->
+    <RestoreAdditionalProjectSources>
+      https://nuget.bepinex.dev/v3/index.json
+    </RestoreAdditionalProjectSources>
+
+    <!--
+      NU1603: BepInEx declares a dependency on a Cpp2IL.Core build that was never
+      published, so NuGet resolves the nearest available version instead.
+
+      Harmless here. These assemblies are compile-time references only (see
+      IncludeAssets below) and never reach the build output - the BepInEx
+      installation in the game folder supplies them at runtime.
+    -->
+    <NoWarn>$(NoWarn);NU1603</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    Every project here is either a BepInEx plugin or a library consumed by one,
+    so the BepInEx reference is shared. IncludeAssets=compile keeps the BepInEx
+    assemblies out of the build output - they are already provided by the loader.
+  -->
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.*" IncludeAssets="compile" />
+  </ItemGroup>
+
+  <!-- Plugins and their dependencies are collected here for easy deployment. -->
+  <PropertyGroup>
+    <ArtifactsDir>$(MSBuildThisFileDirectory)artifacts\</ArtifactsDir>
+  </PropertyGroup>
+
+</Project>

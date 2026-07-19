@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>SLOverdrive.DropMultiplier</AssemblyName>
+    <RootNamespace>SLOverdrive.DropMultiplier</RootNamespace>
+    <Description>Multiplies item drop quantities in Solo Leveling: ARISE OVERDRIVE.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SLOverdrive.Core\SLOverdrive.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Collect the plugin, its dependencies and the item table into artifacts/plugins. -->
+  <Target Name="StageArtifacts" AfterTargets="Build">
+    <ItemGroup>
+      <Payload Include="$(TargetPath)" />
+      <Payload Include="$(TargetDir)SLOverdrive.Core.dll" />
+      <Payload Include="$(MSBuildThisFileDirectory)..\..\data\item_names.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(Payload)"
+          DestinationFolder="$(ArtifactsDir)plugins"
+          SkipUnchangedFiles="true"
+          ContinueOnError="true" />
+  </Target>
+
+</Project>

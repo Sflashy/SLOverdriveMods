@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>SLOverdrive.Core</AssemblyName>
+    <RootNamespace>SLOverdrive.Core</RootNamespace>
+    <Description>Shared IL2CPP helpers for Solo Leveling: ARISE OVERDRIVE mods.</Description>
+  </PropertyGroup>
+
+</Project>

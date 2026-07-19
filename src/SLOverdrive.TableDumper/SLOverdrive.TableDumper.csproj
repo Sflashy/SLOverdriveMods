@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>SLOverdrive.TableDumper</AssemblyName>
+    <RootNamespace>SLOverdrive.TableDumper</RootNamespace>
+    <Description>Dumps the game's decrypted GameData tables at runtime.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SLOverdrive.Core\SLOverdrive.Core.csproj" />
+  </ItemGroup>
+
+  <Target Name="StageArtifacts" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)"
+          DestinationFolder="$(ArtifactsDir)plugins"
+          SkipUnchangedFiles="true"
+          ContinueOnError="true" />
+  </Target>
+
+</Project>

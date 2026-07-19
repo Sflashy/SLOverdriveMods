@@ -1,0 +1,23 @@
+# Build output
+bin/
+obj/
+artifacts/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# Game files - never commit these, they are copyrighted
+*.dll
+!data/**/*.dll
+GameAssembly*
+global-metadata.dat
+cpp2il_out/
+BepInEx/
+DummyDll/
+dump.cs
+
+# Logs
+*.log
