@@ -97,6 +97,77 @@ Uninstalling is clean: delete the `BepInEx` folder, `winhttp.dll` and `doorstop_
 
 ---
 
+## Configuration
+
+Settings live in `BepInEx/config/sflashy.sloverdrive.dropmultiplier.cfg`, created the first
+time the game runs with the plugin installed. Edit it with any text editor **while the game
+is closed** — it rewrites the file on exit and will undo your changes otherwise.
+
+Each section can be switched off independently with its own `Enabled`.
+
+### The settings you will actually want to change
+
+```ini
+[RewardGroup]
+PickCount = 3        # how many items each drop hands out
+
+[RewardWeight]
+Multiplier = 10      # how strongly equipment is favoured
+
+[Quantity]
+Multiplier = 2       # stack size multiplier
+```
+
+Want twice as much? Change `2` to `4`. Want more variety per drop? Raise `PickCount`.
+Restart the game after editing.
+
+### Full reference
+
+| Section | Setting | Default | What it does |
+|---|---|---|---|
+| `[RewardGroup]` | `Enabled` | `true` | Master switch |
+| | `PickCount` | `3` | Entries handed out per drop. `1` = untouched. Multi-item groups give variety, single-item groups give a bigger stack |
+| | `RateMultiplier` | `1.0` | Fire rate of `Random` mode groups |
+| | `MaxRate` | `10000` | Cap for the above |
+| `[RewardWeight]` | `Enabled` | `true` | Master switch |
+| | `Multiplier` | `10.0` | Weight multiplier for the types below |
+| | `Types` | `Artifact` | Comma separated. `Artifact` is wearable equipment. Also valid: `Relic`, `Costume`, `Hunter`, `Shadow`, `Pet`, `Gem`, `Material`, `Gold` |
+| | `MaxWeight` | `0` | Cap after scaling, `0` = none |
+| `[Quantity]` | `Enabled` | `true` | Master switch |
+| | `Multiplier` | `2.0` | Stack multiplier |
+| | `MaxPerStack` | `0` | Cap per stack, `0` = none |
+| | `SkipEquipment` | `false` | Leave single-unit drops alone. Recommended `true` — the game may not expect duplicate equipment |
+| `[DropChance]` | `Enabled` | `true` | Master switch |
+| | `Multiplier` | `5.0` | Multiplier for a drop slot's own probability |
+| | `MaxChance` | `999` | Cap in per-mille, `1000` would be certain |
+| | `OnlyBelow` | `20` | Only touch rows at or below this, leaving common drops alone. `0` = everything |
+| `[DropRate]` | `Enabled` | `true` | Multiplies how many drop objects spawn. Despite the name this is a quantity lever, not a rarity one |
+| `[Debug]` | `DryRun` | `true` | Log only, change nothing |
+| | `Verbose` | `true` | Log detail |
+| | `LogDropPackets` | `true` | Print what each dungeon is about to give you |
+
+### A balanced starting point
+
+```ini
+[RewardGroup]  Enabled = true   PickCount = 3
+[RewardWeight] Enabled = true   Multiplier = 10   Types = Artifact
+[Quantity]     Enabled = true   Multiplier = 2    SkipEquipment = true
+[DropChance]   Enabled = false
+[DropRate]     Enabled = false
+```
+
+Equipment appears regularly, materials come in at double rate, and the loot mix still
+resembles the original game.
+
+**The settings compound.** `PickCount = 3` with `Multiplier = 2` is roughly six times the
+material income, not two. Raise one thing at a time.
+
+**If it feels excessive**, lower `Quantity/Multiplier` first, then `PickCount`.
+`[DropChance]` is the most disruptive of the four — it makes far more drop slots fire, which
+is what produced 50-item dungeons during testing.
+
+---
+
 ## Building
 
 Requires the **.NET 6 SDK**.
