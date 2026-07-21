@@ -19,13 +19,12 @@ namespace SLOverdrive.DropMultiplier
         private readonly ConfigEntry<float> _dropRateMultiplier;
         private readonly ConfigEntry<int> _maxDropRate;
 
-        private readonly ConfigEntry<bool> _scaleChance;
-        private readonly ConfigEntry<float> _chanceMultiplier;
-        private readonly ConfigEntry<int> _maxChance;
-        private readonly ConfigEntry<int> _onlyBelow;
+        private readonly ConfigEntry<bool> _scaleTargetCount;
+        private readonly ConfigEntry<float> _targetCountMultiplier;
+        private readonly ConfigEntry<int> _maxTargetCount;
+        private readonly ConfigEntry<int> _onlyAbove;
         private readonly ConfigEntry<string> _dropTableRowClass;
-        private readonly ConfigEntry<string> _chanceField;
-        private readonly ConfigEntry<string> _chanceItemField;
+        private readonly ConfigEntry<string> _targetCountField;
 
         private readonly ConfigEntry<bool> _scaleRewardWeight;
         private readonly ConfigEntry<float> _rewardWeightMultiplier;
@@ -59,13 +58,12 @@ namespace SLOverdrive.DropMultiplier
         public float DropRateMultiplier { get; private set; }
         public int MaxDropRate { get; private set; }
 
-        public bool ScaleChance { get; private set; }
-        public float ChanceMultiplier { get; private set; }
-        public int MaxChance { get; private set; }
-        public int OnlyBelow { get; private set; }
+        public bool ScaleTargetCount { get; private set; }
+        public float TargetCountMultiplier { get; private set; }
+        public int MaxTargetCount { get; private set; }
+        public int OnlyAbove { get; private set; }
         public string DropTableRowClass { get; private set; }
-        public string ChanceField { get; private set; }
-        public string ChanceItemField { get; private set; }
+        public string TargetCountField { get; private set; }
 
         public bool ScaleRewardWeight { get; private set; }
         public float RewardWeightMultiplier { get; private set; }
@@ -107,32 +105,29 @@ namespace SLOverdrive.DropMultiplier
                 "normally arrive with a stack of 1 and may not behave correctly when duplicated. " +
                 "Enable this to multiply only materials and currencies.");
 
-            _scaleChance = config.Bind("DropChance", "Enabled", true,
-                "Raise the drop probability stored in the game's ContentsDrop table. " +
-                "This is the setting that makes rare items appear more often.");
+            _scaleTargetCount = config.Bind("TargetCount", "Enabled", false,
+                "Raise how many drop-carrying targets a stage has. ContentsDrop.TargetMaxCount " +
+                "is a count, not a probability: 1 for a boss, 50 for a group of mobs. More " +
+                "targets means more chances to roll loot. For the actual drop rate see " +
+                "[RewardGroup] RateMultiplier.");
 
-            _chanceMultiplier = config.Bind("DropChance", "Multiplier", 5.0f,
-                "Drop chance multiplier. Rare items sit at 1 per-mille (0.1%), so 5.0 " +
-                "takes them to 0.5%. Common drops are usually 100 (10%).");
+            _targetCountMultiplier = config.Bind("TargetCount", "Multiplier", 2.0f,
+                "Target count multiplier.");
 
-            _maxChance = config.Bind("DropChance", "MaxChance", 999,
-                "Upper limit after scaling, in per-mille where 1000 would be certain. " +
-                "The game's own table never exceeds 999.");
+            _maxTargetCount = config.Bind("TargetCount", "MaxCount", 999,
+                "Upper limit after scaling. The game's own values stop at 999.");
 
-            _onlyBelow = config.Bind("DropChance", "OnlyBelow", 20,
-                "Only raise rows at or below this probability, leaving common drops alone. " +
-                "0 = scale everything. The rare rows are the ones causing the grind.");
+            _onlyAbove = config.Bind("TargetCount", "OnlyAbove", 1,
+                "Leave rows at or below this count alone. The default of 1 protects boss " +
+                "rows, which are meant to be unique.");
 
             _dropTableRowClass = config.Bind("Advanced", "DropTableRowClass", "AJIHKOOLMFK",
-                "Obfuscated class name of a ContentsDrop table row. Changes when the game updates. " +
-                "Use the Table Dumper to find the new name.");
+                "Obfuscated class name of a ContentsDrop table row. Changes when the game " +
+                "updates. Use the Table Dumper to find the new name.");
 
-            _chanceField = config.Bind("Advanced", "ChanceField", "BIEPKPINBEN",
-                "Field on the row holding the probability. In a fresh dump this is the field " +
-                "with very few distinct values, all between 1 and 999.");
-
-            _chanceItemField = config.Bind("Advanced", "ChanceItemField", "NDHGAHKPBPB",
-                "Field holding the specific item ID, used only to make the log readable.");
+            _targetCountField = config.Bind("Advanced", "TargetCountField", "BIEPKPINBEN",
+                "ContentsDrop.TargetMaxCount. Run the Table Dumper in sheet mode to see " +
+                "the real column names and find this one after a game update.");
 
             _scaleDropRate = config.Bind("DropRate", "Enabled", true,
                 "Raise the chance used when the game rolls a dungeon's loot table. " +
@@ -232,13 +227,12 @@ namespace SLOverdrive.DropMultiplier
             MaxPerStack = _maxPerStack.Value;
             SkipEquipment = _skipEquipment.Value;
 
-            ScaleChance = _scaleChance.Value;
-            ChanceMultiplier = _chanceMultiplier.Value;
-            MaxChance = _maxChance.Value;
-            OnlyBelow = _onlyBelow.Value;
+            ScaleTargetCount = _scaleTargetCount.Value;
+            TargetCountMultiplier = _targetCountMultiplier.Value;
+            MaxTargetCount = _maxTargetCount.Value;
+            OnlyAbove = _onlyAbove.Value;
             DropTableRowClass = _dropTableRowClass.Value;
-            ChanceField = _chanceField.Value;
-            ChanceItemField = _chanceItemField.Value;
+            TargetCountField = _targetCountField.Value;
 
             ScaleDropRate = _scaleDropRate.Value;
             DropRateMultiplier = _dropRateMultiplier.Value;

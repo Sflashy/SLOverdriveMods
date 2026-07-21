@@ -13,13 +13,13 @@ Understanding the three layers makes the settings obvious. A dungeon's loot pass
 each in turn:
 
 ```
-ContentsDrop table          Does this drop slot fire at all?
-  prob 100  common          → [DropChance] multiplies this
-  prob   1  rare
+ContentsDrop table          Which things in the stage carry loot, and how many of them?
+  TargetType   Monster|Object
+  TargetGrade  Normal|Boss
+  TargetMaxCount 1 boss, 50 mobs   → [TargetCount] multiplies this
         ↓
-RewardGroup table           How many entries does the slot hand out?
+RewardGroup table           How many entries does a drop hand out?
   mode  = Random|Rate|Fix
-  rate  = 4000              → [RewardGroup] RateMultiplier
   count = 1                 → [RewardGroup] PickCount
         ↓
 Reward table (by group)     Which entries are they?
@@ -29,6 +29,12 @@ Reward table (by group)     Which entries are they?
 Drop packet                 How many of each?
   itemID, stack             → [Quantity] multiplies this
 ```
+
+The game's own dungeon preview panel is this table rendered: one row per drop source, so the
+boss, the elite monsters and the ore nodes each get their own list. `TargetGrade` separates
+boss from mob, `TargetObjectType` separates ore from herb. Stage clear rewards (EXP, gold)
+are the exception — they come from `WorldContents`, not from `ContentsDrop`, and never pass
+through the drop packet.
 
 **`PickCount` is the important one.** The game ships every one of its 10,482 reward groups
 with a pick count of `1`, so a drop slot only ever hands out a single item no matter how the
@@ -61,7 +67,14 @@ packet carries a `randomSeed`. Select the dungeon fresh for each run; re-enterin
 connected, and the Netmarble anti-cheat (`NMSSW`) ships with the client. A modified save
 reaching the servers can get your account banned. Offline mode only.
 
-**Back up your save** before installing: `%LOCALAPPDATA%\SoloLevelingArise`.
+**Back up your save** before installing:
+
+```
+%USERPROFILE%\AppData\LocalLow\NetmarbleNeo\Solo_Leveling_ARISE_OVERDRIVE
+```
+
+Note `LocalLow`, not `Local` — Unity writes there, and there is no environment
+variable for it, so the path has to be spelled out.
 
 These mods do not touch, disable or bypass the anti-cheat. They modify the game's own data
 in memory while it runs offline.
@@ -127,7 +140,7 @@ Restart the game after editing.
 |---|---|---|---|
 | `[RewardGroup]` | `Enabled` | `true` | Master switch |
 | | `PickCount` | `3` | Entries handed out per drop. `1` = untouched. Multi-item groups give variety, single-item groups give a bigger stack |
-| | `RateMultiplier` | `1.0` | Fire rate of `Random` mode groups |
+| | `RateMultiplier` | `1.0` | Fire rate of `Random` mode groups. **Measured as having no effect** — raising it from 2× to 10× left the drop count unchanged. Left in place for future investigation; leave at `1.0` |
 | | `MaxRate` | `10000` | Cap for the above |
 | `[RewardWeight]` | `Enabled` | `true` | Master switch |
 | | `Multiplier` | `10.0` | Weight multiplier for the types below |
@@ -137,10 +150,10 @@ Restart the game after editing.
 | | `Multiplier` | `2.0` | Stack multiplier |
 | | `MaxPerStack` | `0` | Cap per stack, `0` = none |
 | | `SkipEquipment` | `false` | Leave single-unit drops alone. Recommended `true` — the game may not expect duplicate equipment |
-| `[DropChance]` | `Enabled` | `true` | Master switch |
-| | `Multiplier` | `5.0` | Multiplier for a drop slot's own probability |
-| | `MaxChance` | `999` | Cap in per-mille, `1000` would be certain |
-| | `OnlyBelow` | `20` | Only touch rows at or below this, leaving common drops alone. `0` = everything |
+| `[TargetCount]` | `Enabled` | `false` | Master switch |
+| | `Multiplier` | `2.0` | Multiplier for `ContentsDrop.TargetMaxCount` — how many loot-carrying targets a stage has |
+| | `MaxCount` | `999` | Cap after scaling; the game's own values stop at 999 |
+| | `OnlyAbove` | `1` | Leave rows at or below this alone. The default protects boss rows, which are meant to be unique |
 | `[DropRate]` | `Enabled` | `true` | Multiplies how many drop objects spawn. Despite the name this is a quantity lever, not a rarity one |
 | `[Debug]` | `DryRun` | `true` | Log only, change nothing |
 | | `Verbose` | `true` | Log detail |
@@ -152,7 +165,7 @@ Restart the game after editing.
 [RewardGroup]  Enabled = true   PickCount = 3
 [RewardWeight] Enabled = true   Multiplier = 10   Types = Artifact
 [Quantity]     Enabled = true   Multiplier = 2    SkipEquipment = true
-[DropChance]   Enabled = false
+[TargetCount]  Enabled = false
 [DropRate]     Enabled = false
 ```
 
@@ -162,9 +175,12 @@ resembles the original game.
 **The settings compound.** `PickCount = 3` with `Multiplier = 2` is roughly six times the
 material income, not two. Raise one thing at a time.
 
-**If it feels excessive**, lower `Quantity/Multiplier` first, then `PickCount`.
-`[DropChance]` is the most disruptive of the four — it makes far more drop slots fire, which
-is what produced 50-item dungeons during testing.
+Adding `[TargetCount] Enabled = true, Multiplier = 5` on top of the above produced a
+246-item dungeon in testing, most of it ore and crystal from the mining nodes. Fun, but far
+past what the game was balanced for.
+
+**If it feels excessive**, turn `[TargetCount]` off first, then lower `Quantity/Multiplier`,
+then `PickCount`.
 
 ---
 
@@ -198,10 +214,18 @@ SLOverdriveMods/
     │   │   └── Il2CppReflect.cs   read/write Il2Cpp objects and lists
     │   └── Data/
     │       └── ItemDatabase.cs    item name lookup
-    └── SLOverdrive.DropMultiplier/
-        ├── Plugin.cs              entry point, patch wiring
-        ├── DropConfig.cs          settings
-        └── DropPacketPatch.cs     the actual patch
+    ├── SLOverdrive.DropMultiplier/
+    │   ├── Plugin.cs              entry point, patch wiring
+    │   ├── DropConfig.cs          settings
+    │   ├── DropPacketPatch.cs     scales stacks, and prints the drop readout
+    │   ├── TargetCountPatch.cs    ContentsDrop.TargetMaxCount
+    │   ├── RewardGroupPatch.cs    RewardGroup.PickCount
+    │   ├── RewardWeightPatch.cs   Reward.weight, filtered by type
+    │   └── DropRatePatch.cs       GKDropCommon.GetDropInfoCommons
+    └── SLOverdrive.TableDumper/
+        ├── Plugin.cs              entry point
+        ├── TableWriter.cs         row mode — values, obfuscated headers
+        └── SheetDumper.cs         sheet mode — real column names
 ```
 
 `SLOverdrive.Core` holds everything that is not specific to a single mod. New mods reference
@@ -225,7 +249,7 @@ project file only needs its assembly name and a project reference.
 
 | Setting | Hooked method | Runs |
 |---|---|---|
-| `[DropChance]` | `AJIHKOOLMFK.LoadDataSheet` | Once per table row, at startup |
+| `[TargetCount]` | `AJIHKOOLMFK.LoadDataSheet` | Once per table row, at startup |
 | `[RewardGroup]` | `PEGMFCJCGFA.LoadDataSheet` | Once per table row, at startup |
 | `[RewardWeight]` | `COABIFJBJBJ.LoadDataSheet` | Once per table row, at startup |
 | `[Quantity]` | `ELAHJNHCOHO.NFNNBJJLIKF(GAME_BATTLE_STAGE_DROP_NFY)` | Once per dungeon |
@@ -255,12 +279,16 @@ Obfuscated names change with every game build. All of them live in the `[Advance
 section, and the Table Dumper is how you find the new ones.
 
 1. Run the Table Dumper with `Types = *`, with this mod disabled so the values are original
-2. Find `ContentsDrop_*.csv` and `Reward_*.csv` — the filename suffix is the new class name
-3. In `ContentsDrop`, the probability column is the one with very few distinct values, all
-   between 1 and 999
-4. In `Reward`, find the column containing `Artifact`, `Material`, `Gold`; the weight is the
-   numeric column beside it
+2. Run it once more in **sheet mode**, which writes the real (unobfuscated) column headers —
+   that is how `TargetMaxCount`, `PickCount` and the rest were identified in the first place
+3. Find `ContentsDrop_*.csv` and `Reward_*.csv` — the filename suffix is the new class name
+4. Match the sheet-mode headers against the row-mode columns to get the new obfuscated
+   field names
 5. Put the new names into `[Advanced]`
+
+Sanity checks if you would rather not run sheet mode: in `RewardGroup`, `PickCount` is the
+column that is `1` on all 10,482 rows. In `Reward`, the weight is the numeric column beside
+the one containing `Artifact` / `Material` / `Gold`.
 
 `DropManagerType` can be left empty — the plugin then locates the drop manager by searching
 for a method that takes `GAME_BATTLE_STAGE_DROP_NFY`.

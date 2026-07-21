@@ -19,6 +19,13 @@ BepInEx/
 DummyDll/
 dump.cs
 editor/
+Local.props
 
+# Local build convenience: copies plugins into the game folder after a build.
+# Machine-specific, so it stays out of the repository.
+Directory.Build.targets
+Local.props.example
+data/
+TextData.csv
 # Logs
 *.log

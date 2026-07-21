@@ -74,6 +74,10 @@ namespace SLOverdrive.TableDumper
             Directory.CreateDirectory(_outputPath);
             Log.LogInfo($"Writing table dumps to {_outputPath}");
 
+            // Rows are buffered, so a clean exit has to push the tail of every table
+            // to disk. A crash still keeps everything up to the last checkpoint.
+            AppDomain.CurrentDomain.ProcessExit += (_, __) => CloseAll();
+
             if (sheetMode.Value)
             {
                 SheetDumper.Initialize(_outputPath, _maxRowsPerTable.Value, Log);
@@ -211,6 +215,11 @@ namespace SLOverdrive.TableDumper
 
                 if (!_writers.TryGetValue(typeName, out var writer))
                 {
+                    // A new table starting means the previous ones are finished, which
+                    // makes this the natural checkpoint: it bounds what a crash can
+                    // lose to the table currently being read.
+                    FlushAll();
+
                     string sheetName = Il2CppReflect.GetMember(sheet, "SheetName") as string;
                     writer = new TableWriter(_outputPath, typeName, sheetName, _maxRowsPerTable.Value, Log);
                     _writers[typeName] = writer;
@@ -224,6 +233,20 @@ namespace SLOverdrive.TableDumper
             {
                 Log.LogError("Failed to dump row: " + ex.Message);
             }
+        }
+
+        private void FlushAll()
+        {
+            foreach (var writer in _writers.Values)
+                writer.Flush();
+        }
+
+        private void CloseAll()
+        {
+            foreach (var writer in _writers.Values)
+                writer.Dispose();
+
+            _writers.Clear();
         }
     }
 }

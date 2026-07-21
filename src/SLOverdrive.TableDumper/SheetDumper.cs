@@ -63,23 +63,26 @@ namespace SLOverdrive.TableDumper
 
         private static void Dump(string sheetName, object sheet)
         {
-            var columns = Il2CppReflect.GetMember(sheet, "DicColums");
-            var names = Il2CppReflect.DictionaryKeys(columns).ToList();
+            var columns = ReadColumns(sheet);
 
-            if (names.Count == 0)
+            if (columns.Count == 0)
             {
                 _log.LogWarning($"{sheetName}: no columns could be read.");
                 return;
             }
 
+            var names = new List<string>(columns.Count);
+
             // Pull each column's values out once, then write across them row by row.
-            var data = new List<List<object>>(names.Count);
+            var data = new List<List<object>>(columns.Count);
             int rowCount = 0;
 
-            foreach (var name in names)
+            foreach (var column in columns)
             {
-                var column = Invoke(sheet, "GetColum", name);
-                var list = Il2CppReflect.GetMember(column, "DataList");
+                names.Add(Il2CppReflect.GetMember(column, "m_strName") as string ?? $"col{names.Count}");
+
+                var list = Il2CppReflect.GetMember(column, "m_lstData")
+                           ?? Il2CppReflect.GetMember(column, "DataList");
 
                 int count = Il2CppReflect.ListCount(list);
                 var values = new List<object>(count);
@@ -104,7 +107,9 @@ namespace SLOverdrive.TableDumper
                     var cells = new string[names.Count];
 
                     for (int col = 0; col < data.Count; col++)
-                        cells[col] = Escape(row < data[col].Count ? data[col][row]?.ToString() ?? "" : "");
+                        cells[col] = Escape(row < data[col].Count
+                            ? Il2CppReflect.ValueToString(data[col][row])
+                            : "");
 
                     writer.WriteLine(string.Join(",", cells));
                 }
@@ -113,12 +118,58 @@ namespace SLOverdrive.TableDumper
             _log.LogInfo($"  {sheetName}  ({rowCount} rows, {names.Count} columns)");
         }
 
-        private static object Invoke(object target, string method, string argument)
+        /// <summary>
+        /// Gets the sheet's columns.
+        ///
+        /// The dictionary holding them is awkward to reach: the public property is typed
+        /// as an interface, and Il2Cpp dictionaries enumerate through a value-type
+        /// enumerator that does not survive plain reflection. Several routes are tried in
+        /// order of reliability, and the one that worked is reported once so the next
+        /// build can drop the rest.
+        /// </summary>
+        private static List<object> ReadColumns(object sheet)
         {
-            var info = target.GetType().GetMethod(method, new[] { typeof(string) });
+            // The backing field is a concrete Dictionary, unlike the interface-typed property.
+            foreach (var member in new[] { "m_dicColums", "DicColums" })
+            {
+                var dictionary = Il2CppReflect.GetMember(sheet, member);
+                if (dictionary == null) continue;
 
-            try { return info?.Invoke(target, new object[] { argument }); }
-            catch { return null; }
+                var values = Il2CppReflect.GetMember(dictionary, "Values");
+                var columns = Il2CppReflect.Enumerate(values)
+                                           .Where(v => v != null)
+                                           .ToList();
+
+                if (columns.Count > 0)
+                {
+                    Report($"{member}.Values");
+                    return columns;
+                }
+
+                // Some dictionaries only enumerate as key/value pairs.
+                columns = Il2CppReflect.Enumerate(dictionary)
+                                       .Select(pair => Il2CppReflect.GetMember(pair, "Value"))
+                                       .Where(v => v != null)
+                                       .ToList();
+
+                if (columns.Count > 0)
+                {
+                    Report($"{member} pairs");
+                    return columns;
+                }
+            }
+
+            return new List<object>();
+        }
+
+        private static string _route;
+
+        private static void Report(string route)
+        {
+            if (_route == route) return;
+
+            _route = route;
+            _log.LogInfo($"  reading columns via {route}");
         }
 
         private static string Escape(string value)

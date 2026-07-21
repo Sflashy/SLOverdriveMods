@@ -131,6 +131,42 @@ namespace SLOverdrive.Core.Il2Cpp
             }
         }
 
+        /// <summary>
+        /// Renders a value that came out of an Il2Cpp collection.
+        ///
+        /// Collections typed as <c>List&lt;Object&gt;</c> hand back boxed values whose
+        /// managed wrapper has no useful ToString - calling it gives "Il2CppSystem.Object"
+        /// rather than the number inside. The real value comes from the native ToString,
+        /// which Il2CppInterop exposes as an override on the generated type.
+        /// </summary>
+        public static string ValueToString(object value)
+        {
+            if (value == null) return "";
+
+            // Already a managed value; nothing to unwrap.
+            if (value is string text) return text;
+            if (value.GetType().IsPrimitive || value is decimal) return value.ToString();
+
+            var method = value.GetType().GetMethod("ToString", Type.EmptyTypes);
+
+            // A ToString declared anywhere other than System.Object is the generated
+            // override that calls into il2cpp.
+            if (method != null && method.DeclaringType != typeof(object))
+            {
+                try
+                {
+                    if (method.Invoke(value, null) is string native)
+                        return native;
+                }
+                catch
+                {
+                    // Fall through to the plain rendering below.
+                }
+            }
+
+            return value.ToString();
+        }
+
         /// <summary>Keys of an Il2Cpp dictionary, as strings.</summary>
         public static IEnumerable<string> DictionaryKeys(object dictionary)
         {

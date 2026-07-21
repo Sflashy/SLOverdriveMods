@@ -75,7 +75,7 @@ namespace SLOverdrive.DropMultiplier
 
                 // Table patch totals are reported here rather than at load time,
                 // because the tables are still loading when the plugin starts.
-                DropChancePatch.ReportSummary();
+                TargetCountPatch.ReportSummary();
                 RewardWeightPatch.ReportSummary();
                 RewardGroupPatch.ReportSummary();
 

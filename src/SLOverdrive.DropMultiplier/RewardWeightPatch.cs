@@ -21,8 +21,8 @@ namespace SLOverdrive.DropMultiplier
     /// sit below 1% of their group's total weight, which is why equipment feels rare
     /// even when the drop slot itself is guaranteed.
     ///
-    /// <see cref="DropChancePatch"/> controls whether a slot fires; this controls what
-    /// comes out of it.
+    /// <see cref="RewardGroupPatch"/> controls whether a group fires and how many
+    /// entries it gives; this controls which entries win.
     /// </summary>
     internal static class RewardWeightPatch
     {

@@ -34,17 +34,30 @@ namespace SLOverdrive.DropMultiplier
             ItemDatabase.Load(Log);
             DropPacketPatch.Initialize(config, Log);
             DropRatePatch.Initialize(config, Log);
-            DropChancePatch.Initialize(config, Log);
+            TargetCountPatch.Initialize(config, Log);
             RewardWeightPatch.Initialize(config, Log);
             RewardGroupPatch.Initialize(config, Log);
 
-            Log.LogInfo($"DryRun={config.DryRun}");
+            // DryRun defaults to on, which is the safe default and also the most
+            // common reason the mod appears to do nothing: everything is patched,
+            // every line is logged, and not one value is changed. Said plainly and
+            // at warning level so it is not read past.
+            if (config.DryRun)
+            {
+                Log.LogWarning("DryRun is ON - drops are only logged, nothing is changed. " +
+                               "Set DryRun = false in BepInEx/config/" +
+                               "sflashy.sloverdrive.dropmultiplier.cfg to apply the mod.");
+            }
+            else
+            {
+                Log.LogInfo("DryRun is off - drops will be modified.");
+            }
 
             var harmony = new Harmony(Guid);
             int patched = 0;
 
-            if (config.ScaleChance)
-                patched += PatchDropChance(harmony, config) ? 1 : 0;
+            if (config.ScaleTargetCount)
+                patched += PatchTargetCount(harmony, config) ? 1 : 0;
 
             if (config.ScaleRewardWeight)
                 patched += PatchRewardWeight(harmony, config) ? 1 : 0;
@@ -69,12 +82,9 @@ namespace SLOverdrive.DropMultiplier
         }
 
         /// <summary>
-        /// Patches the ContentsDrop row loader so rare drops become more likely.
-        ///
-        /// The rows are loaded once at startup, so this runs a few thousand times
-        /// during loading and never again.
+        /// Patches the ContentsDrop row loader so stages carry more drop targets.
         /// </summary>
-        private bool PatchDropChance(Harmony harmony, DropConfig config)
+        private bool PatchTargetCount(Harmony harmony, DropConfig config)
         {
             var type = TypeResolver.Find(config.DropTableRowClass);
             if (type == null)
@@ -93,11 +103,11 @@ namespace SLOverdrive.DropMultiplier
 
             try
             {
-                var postfix = AccessTools.Method(typeof(DropChancePatch), nameof(DropChancePatch.Postfix));
+                var postfix = AccessTools.Method(typeof(TargetCountPatch), nameof(TargetCountPatch.Postfix));
                 harmony.Patch(target, postfix: new HarmonyMethod(postfix));
 
                 Log.LogInfo($"Patched {config.DropTableRowClass}.LoadDataSheet " +
-                            $"(field {config.ChanceField}, x{config.ChanceMultiplier})");
+                            $"(TargetMaxCount x{config.TargetCountMultiplier})");
                 return true;
             }
             catch (System.Exception ex)
@@ -182,7 +192,7 @@ namespace SLOverdrive.DropMultiplier
         ///
         /// Despite the name, the game's <c>dropRate</c> parameter multiplies how many
         /// drop objects each table row spawns rather than gating them, so this behaves
-        /// as a quantity multiplier. Rarity is handled by <see cref="PatchDropChance"/>.
+        /// as a quantity multiplier. The real drop rate lives on the reward group.
         ///
         /// NLib.GKDropCommon.GetDropInfoCommons(List&lt;T&gt; dropDatas, int randomSeed, int dropRate)
         ///
