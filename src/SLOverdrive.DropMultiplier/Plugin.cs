@@ -36,6 +36,7 @@ namespace SLOverdrive.DropMultiplier
             DropRatePatch.Initialize(config, Log);
             TargetCountPatch.Initialize(config, Log);
             RewardWeightPatch.Initialize(config, Log);
+            RewardCountPatch.Initialize(config, Log);
             RewardGroupPatch.Initialize(config, Log);
 
             // DryRun defaults to on, which is the safe default and also the most
@@ -62,15 +63,22 @@ namespace SLOverdrive.DropMultiplier
             if (config.ScaleRewardWeight)
                 patched += PatchRewardWeight(harmony, config) ? 1 : 0;
 
+            // Quantity now scales the reward table's stack counts, on the same row
+            // loader RewardWeight patches. It is a table patch like the others, so
+            // the larger amount actually rolls and actually grants.
+            if (config.ScaleQuantity)
+                patched += PatchRewardCount(harmony, config) ? 1 : 0;
+
             if (config.ScaleRewardGroup)
                 patched += PatchRewardGroup(harmony, config) ? 1 : 0;
 
             if (config.ScaleDropRate)
                 patched += PatchDropRate(harmony) ? 1 : 0;
 
-            // The packet hook doubles as the drop readout, so it is also installed when
-            // quantity scaling is off but the user still wants to see what dropped.
-            if (config.ScaleQuantity || config.LogDropPackets)
+            // The packet hook is only a readout now - it prints what a dungeon is
+            // about to give, and no longer tries to scale it, because editing the
+            // notification never reached the grant. Installed only for that log.
+            if (config.LogDropPackets)
                 patched += PatchDropPacket(harmony, config) ? 1 : 0;
 
             if (patched == 0)
@@ -143,6 +151,42 @@ namespace SLOverdrive.DropMultiplier
 
                 Log.LogInfo($"Patched {config.RewardRowClass}.LoadDataSheet " +
                             $"(types {config.RewardTypeFilter}, x{config.RewardWeightMultiplier})");
+                return true;
+            }
+            catch (System.Exception ex)
+            {
+                Log.LogError($"Failed to patch {config.RewardRowClass}.LoadDataSheet - {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Patches the Reward row loader so each entry grants a larger stack. The
+        /// same loader RewardWeight patches; Harmony runs both postfixes.
+        /// </summary>
+        private bool PatchRewardCount(Harmony harmony, DropConfig config)
+        {
+            var type = TypeResolver.Find(config.RewardRowClass);
+            if (type == null)
+            {
+                Log.LogWarning($"Reward row class '{config.RewardRowClass}' not found.");
+                return false;
+            }
+
+            var target = AccessTools.Method(type, "LoadDataSheet");
+            if (target == null)
+            {
+                Log.LogWarning($"{config.RewardRowClass}.LoadDataSheet not found.");
+                return false;
+            }
+
+            try
+            {
+                var postfix = AccessTools.Method(typeof(RewardCountPatch), nameof(RewardCountPatch.Postfix));
+                harmony.Patch(target, postfix: new HarmonyMethod(postfix));
+
+                Log.LogInfo($"Patched {config.RewardRowClass}.LoadDataSheet " +
+                            $"(stack count x{config.Multiplier})");
                 return true;
             }
             catch (System.Exception ex)

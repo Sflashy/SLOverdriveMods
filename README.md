@@ -22,12 +22,13 @@ RewardGroup table           How many entries does a drop hand out?
   mode  = Random|Rate|Fix
   count = 1                 → [RewardGroup] PickCount
         ↓
-Reward table (by group)     Which entries are they?
-  weight 10000  Material    → [RewardWeight] multiplies this
+Reward table (by group)     Which entries, and how many of each?
+  weight 10000  Material    → [RewardWeight] multiplies the weight
   weight  1000  Artifact
+  countMin/Max              → [Quantity] multiplies the stack
         ↓
-Drop packet                 How many of each?
-  itemID, stack             → [Quantity] multiplies this
+Drop packet                 The readout: what the roll produced
+  itemID, stack             (LogDropPackets prints this)
 ```
 
 The game's own dungeon preview panel is this table rendered: one row per drop source, so the
@@ -51,9 +52,19 @@ sit below 1% of their group's weight. `[RewardWeight]` biases the group toward e
 it cannot help in groups that are *entirely* artifacts — scaling every entry equally leaves
 the odds unchanged. 210 groups are like that, which is why `PickCount` matters more.
 
-**Scope.** Items, materials and equipment are all covered. Gold is affected only when it
-drops as a world pickup (gates, field dungeons), not when awarded on the result screen. EXP
-never passes through the packet and is never touched.
+**`[Quantity]` multiplies the stack, and it edits the table, not the packet.** Each Reward
+entry carries the amount it grants (`RewardCountMin`/`Max`); scaling that there, before the
+roll, is what actually reaches your inventory. Editing the drop packet instead — which an
+earlier version did — only changed the number on the reward screen and granted nothing,
+because the packet is built after the game has already decided what to hand over. Measured
+offline: a stack shown as 300 in the packet, inventory unmoved.
+
+`[Quantity] Types` picks which reward types scale, default `Material,Gold,UseItem`. Worth
+knowing: `UseItem` is almost entirely reward **boxes** (641 of 665 — "Artifact Equipment" and
+the like), so multiplying it gives more boxes, which open into more equipment. That is the
+real "more gear" lever. `Artifact` is left out, because those are single items — multiplying
+makes literal duplicate copies rather than a box of variety. The multiplier is the flood
+control: 2-3 is a normal drop, high values turn the boxes into far more than you can use.
 
 Drops are rolled when you **select the dungeon on the map**, not when you enter it — the
 packet carries a `randomSeed`. Select the dungeon fresh for each run; re-entering through a
@@ -146,10 +157,10 @@ Restart the game after editing.
 | | `Multiplier` | `10.0` | Weight multiplier for the types below |
 | | `Types` | `Artifact` | Comma separated. `Artifact` is wearable equipment. Also valid: `Relic`, `Costume`, `Hunter`, `Shadow`, `Pet`, `Gem`, `Material`, `Gold` |
 | | `MaxWeight` | `0` | Cap after scaling, `0` = none |
-| `[Quantity]` | `Enabled` | `true` | Master switch |
-| | `Multiplier` | `2.0` | Stack multiplier |
+| `[Quantity]` | `Enabled` | `true` | Master switch. Scales `Reward.RewardCount` in the table, so the larger stack actually reaches inventory |
+| | `Types` | `Material,Gold,UseItem` | Which reward types scale. `UseItem` is mostly equipment **boxes**, so it doubles as the "more gear" lever. `Artifact` is left out (single items copy literally). `*` for all |
+| | `Multiplier` | `2.0` | Stack multiplier, and the flood control: 2-3 is a normal drop, high values flood the box types |
 | | `MaxPerStack` | `0` | Cap per stack, `0` = none |
-| | `SkipEquipment` | `false` | Leave single-unit drops alone. Recommended `true` — the game may not expect duplicate equipment |
 | `[TargetCount]` | `Enabled` | `false` | Master switch |
 | | `Multiplier` | `2.0` | Multiplier for `ContentsDrop.TargetMaxCount` — how many loot-carrying targets a stage has |
 | | `MaxCount` | `999` | Cap after scaling; the game's own values stop at 999 |
@@ -164,7 +175,7 @@ Restart the game after editing.
 ```ini
 [RewardGroup]  Enabled = true   PickCount = 3
 [RewardWeight] Enabled = true   Multiplier = 10   Types = Artifact
-[Quantity]     Enabled = true   Multiplier = 2    SkipEquipment = true
+[Quantity]     Enabled = true   Multiplier = 2
 [TargetCount]  Enabled = false
 [DropRate]     Enabled = false
 ```
@@ -217,10 +228,11 @@ SLOverdriveMods/
     ├── SLOverdrive.DropMultiplier/
     │   ├── Plugin.cs              entry point, patch wiring
     │   ├── DropConfig.cs          settings
-    │   ├── DropPacketPatch.cs     scales stacks, and prints the drop readout
+    │   ├── DropPacketPatch.cs     prints the drop readout (read-only)
     │   ├── TargetCountPatch.cs    ContentsDrop.TargetMaxCount
     │   ├── RewardGroupPatch.cs    RewardGroup.PickCount
     │   ├── RewardWeightPatch.cs   Reward.weight, filtered by type
+    │   ├── RewardCountPatch.cs    Reward.RewardCountMin/Max, filtered by type
     │   └── DropRatePatch.cs       GKDropCommon.GetDropInfoCommons
     └── SLOverdrive.TableDumper/
         ├── Plugin.cs              entry point
@@ -252,7 +264,8 @@ project file only needs its assembly name and a project reference.
 | `[TargetCount]` | `AJIHKOOLMFK.LoadDataSheet` | Once per table row, at startup |
 | `[RewardGroup]` | `PEGMFCJCGFA.LoadDataSheet` | Once per table row, at startup |
 | `[RewardWeight]` | `COABIFJBJBJ.LoadDataSheet` | Once per table row, at startup |
-| `[Quantity]` | `ELAHJNHCOHO.NFNNBJJLIKF(GAME_BATTLE_STAGE_DROP_NFY)` | Once per dungeon |
+| `[Quantity]` | `COABIFJBJBJ.LoadDataSheet` | Once per table row, at startup |
+| readout | `ELAHJNHCOHO.NFNNBJJLIKF(GAME_BATTLE_STAGE_DROP_NFY)` | Once per dungeon, read-only |
 | `[DropRate]` | `NLib.GKDropCommon.GetDropInfoCommons` | Once per dungeon |
 
 The three tables are linked by ID, which is how a drop in the packet traces back to its items:

@@ -11,9 +11,9 @@ namespace SLOverdrive.DropMultiplier
     internal sealed class DropConfig
     {
         private readonly ConfigEntry<bool> _scaleQuantity;
+        private readonly ConfigEntry<string> _quantityTypes;
         private readonly ConfigEntry<float> _multiplier;
         private readonly ConfigEntry<int> _maxPerStack;
-        private readonly ConfigEntry<bool> _skipEquipment;
 
         private readonly ConfigEntry<bool> _scaleDropRate;
         private readonly ConfigEntry<float> _dropRateMultiplier;
@@ -34,6 +34,8 @@ namespace SLOverdrive.DropMultiplier
         private readonly ConfigEntry<string> _rewardWeightField;
         private readonly ConfigEntry<string> _rewardTypeField;
         private readonly ConfigEntry<string> _rewardItemField;
+        private readonly ConfigEntry<string> _rewardCountMinField;
+        private readonly ConfigEntry<string> _rewardCountMaxField;
 
         private readonly ConfigEntry<bool> _scaleRewardGroup;
         private readonly ConfigEntry<int> _pickCount;
@@ -50,9 +52,9 @@ namespace SLOverdrive.DropMultiplier
         private readonly ConfigEntry<string> _dropManagerType;
 
         public bool ScaleQuantity { get; private set; }
+        public string QuantityTypes { get; private set; }
         public float Multiplier { get; private set; }
         public int MaxPerStack { get; private set; }
-        public bool SkipEquipment { get; private set; }
 
         public bool ScaleDropRate { get; private set; }
         public float DropRateMultiplier { get; private set; }
@@ -73,6 +75,8 @@ namespace SLOverdrive.DropMultiplier
         public string RewardWeightField { get; private set; }
         public string RewardTypeField { get; private set; }
         public string RewardItemField { get; private set; }
+        public string RewardCountMinField { get; private set; }
+        public string RewardCountMaxField { get; private set; }
 
         public bool ScaleRewardGroup { get; private set; }
         public int PickCount { get; private set; }
@@ -91,19 +95,30 @@ namespace SLOverdrive.DropMultiplier
         public DropConfig(ConfigFile config)
         {
             _scaleQuantity = config.Bind("Quantity", "Enabled", true,
-                "Multiply the amount of each item that drops. Applies after the loot roll, " +
-                "so it changes how much you get, not what you get.");
+                "Multiply the stack size each reward entry grants. This edits Reward.RewardCount " +
+                "in the table, before the roll, so it changes the amount that actually reaches " +
+                "your inventory. Which reward types it touches is set by Types below.");
+
+            _quantityTypes = config.Bind("Quantity", "Types", "Material,Gold,UseItem",
+                "Comma separated reward types to multiply, or '*' for all.\n" +
+                "  Material, Gold - plain stackables; multiplying grows the stack.\n" +
+                "  UseItem        - almost entirely reward BOXES (641 of 665 are containers " +
+                "like 'Artifact Equipment'). Multiplying these gives more boxes, which open into " +
+                "more equipment, so this is also the 'more gear' lever. At the default x2 that is " +
+                "a box or two extra; the flooding you may have read about only happens if you " +
+                "crank the multiplier high. Keep the multiplier modest and it stays a normal drop.\n" +
+                "Artifact is left out: those are single items, so multiplying makes literal " +
+                "duplicate copies rather than a box of variety, and the boxes above cover gear.");
 
             _multiplier = config.Bind("Quantity", "Multiplier", 2.0f,
-                "Drop quantity multiplier. 2.0 = double drops.");
+                "Stack multiplier. 2.0 = double the amount of each drop. This is also the flood " +
+                "control: 2-3 stays a normal-feeling drop, while a large value turns the box " +
+                "types above into far more equipment than you can use. A box that opened once " +
+                "opens three times at 3.0; five meteorites become fifteen.");
 
             _maxPerStack = config.Bind("Quantity", "MaxPerStack", 0,
-                "Upper limit for a single item stack after scaling. 0 = no limit.");
-
-            _skipEquipment = config.Bind("Quantity", "SkipEquipment", false,
-                "Leave items that drop as a single unit untouched. Equipment and artifacts " +
-                "normally arrive with a stack of 1 and may not behave correctly when duplicated. " +
-                "Enable this to multiply only materials and currencies.");
+                "Upper limit for a stack after scaling. 0 = no limit. Some entries grant "
+                + "hundreds already (currencies), so a large multiplier without a cap is a lot.");
 
             _scaleTargetCount = config.Bind("TargetCount", "Enabled", false,
                 "Raise how many drop-carrying targets a stage has. ContentsDrop.TargetMaxCount " +
@@ -170,6 +185,13 @@ namespace SLOverdrive.DropMultiplier
             _rewardItemField = config.Bind("Advanced", "RewardItemField", "LHMNABONBNE",
                 "Field holding the item ID, used only to make the log readable.");
 
+            _rewardCountMinField = config.Bind("Advanced", "RewardCountMinField", "JFHBPIMFCKF",
+                "Reward.RewardCountMin - the low end of the stack a reward entry grants. " +
+                "This is where [Quantity] multiplies, before the roll, so it reaches the grant.");
+
+            _rewardCountMaxField = config.Bind("Advanced", "RewardCountMaxField", "OOCBMBCAMDK",
+                "Reward.RewardCountMax - the high end of the stack a reward entry grants.");
+
             _scaleRewardGroup = config.Bind("RewardGroup", "Enabled", true,
                 "Change how many items each reward group hands out. The game ships every " +
                 "group with a pick count of 1, which is why a drop only ever yields one item.");
@@ -223,9 +245,9 @@ namespace SLOverdrive.DropMultiplier
         private void Refresh()
         {
             ScaleQuantity = _scaleQuantity.Value;
+            QuantityTypes = _quantityTypes.Value;
             Multiplier = _multiplier.Value;
             MaxPerStack = _maxPerStack.Value;
-            SkipEquipment = _skipEquipment.Value;
 
             ScaleTargetCount = _scaleTargetCount.Value;
             TargetCountMultiplier = _targetCountMultiplier.Value;
@@ -246,6 +268,8 @@ namespace SLOverdrive.DropMultiplier
             RewardWeightField = _rewardWeightField.Value;
             RewardTypeField = _rewardTypeField.Value;
             RewardItemField = _rewardItemField.Value;
+            RewardCountMinField = _rewardCountMinField.Value;
+            RewardCountMaxField = _rewardCountMaxField.Value;
 
             ScaleRewardGroup = _scaleRewardGroup.Value;
             PickCount = _pickCount.Value;

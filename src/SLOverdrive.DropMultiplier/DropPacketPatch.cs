@@ -17,6 +17,16 @@ namespace SLOverdrive.DropMultiplier
     ///            └─ stack      ← scaled here
     /// </code>
     ///
+    /// This packet is a READOUT, not a lever. It is built after the game has
+    /// already decided what to grant, so editing it changes the number on the
+    /// reward screen and nothing else - measured offline, a stack shown as 300
+    /// here still added nothing to the bag. The mod used to scale it and appear
+    /// to do nothing; quantity now lives in <see cref="RewardCountPatch"/>,
+    /// which edits the table the roll reads and so actually grants.
+    ///
+    /// What this still earns its place doing is printing what a dungeon is about
+    /// to hand over, which is the LogDropPackets feature.
+    ///
     /// Harmony patches must be static, so the config and logger are injected once
     /// at plugin startup rather than passed per call.
     /// </summary>
@@ -47,8 +57,6 @@ namespace SLOverdrive.DropMultiplier
                     return;
                 }
 
-                int modified = 0;
-
                 for (int i = 0; i < dropCount; i++)
                 {
                     var drop = Il2CppReflect.ListItem(drops, i);
@@ -67,19 +75,18 @@ namespace SLOverdrive.DropMultiplier
                     int itemCount = Il2CppReflect.ListCount(items);
 
                     for (int j = 0; j < itemCount; j++)
-                    {
-                        if (ScaleItem(Il2CppReflect.ListItem(items, j)))
-                            modified++;
-                    }
+                        Report(Il2CppReflect.ListItem(items, j));
                 }
 
                 // Table patch totals are reported here rather than at load time,
                 // because the tables are still loading when the plugin starts.
                 TargetCountPatch.ReportSummary();
                 RewardWeightPatch.ReportSummary();
+                RewardCountPatch.ReportSummary();
                 RewardGroupPatch.ReportSummary();
 
-                _log.LogInfo($"Drop packet: {dropCount} drop(s), {modified} stack(s) modified.");
+                _log.LogInfo($"Drop packet: {dropCount} drop(s). The amounts here are already " +
+                             "scaled by the reward table if [Quantity] is on.");
             }
             catch (Exception ex)
             {
@@ -88,51 +95,30 @@ namespace SLOverdrive.DropMultiplier
         }
 
         /// <summary>Scales one item entry. Returns true when the stack was changed.</summary>
-        private static bool ScaleItem(object item)
+        /// <summary>
+        /// Prints one item line from the packet. Read-only: the stack here already
+        /// reflects any reward-table scaling from <see cref="RewardCountPatch"/>,
+        /// so there is nothing to change and nothing to return.
+        /// </summary>
+        private static void Report(object item)
         {
-            if (item == null) return false;
+            if (item == null) return;
 
             var stackValue = Il2CppReflect.GetMember(item, "stack");
-            if (stackValue == null) return false;
+            if (stackValue == null) return;
 
             int stack;
             try { stack = Convert.ToInt32(stackValue); }
-            catch { return false; }
+            catch { return; }
 
-            if (stack <= 0) return false;
+            if (stack <= 0) return;
 
             string name = ItemDatabase.NameOf(Il2CppReflect.GetMember(item, "itemID"));
 
-            // With quantity scaling off this patch is still useful as a readout of
-            // what the dungeon is about to hand over.
-            if (!_config.ScaleQuantity)
-            {
-                string listed = $"  {name,-38} {stack,5}";
-                _log.LogInfo(listed);
-                return false;
-            }
-
-            // Equipment and artifacts arrive as a single unit. The game does not
-            // necessarily expect duplicates, so the user can opt out of touching them.
-            if (_config.SkipEquipment && stack == 1)
-            {
-                // Assigned to a local first: BepInEx's logging interpolated string
-                // handler has no alignment overload, the default string one does.
-                string skipped = $"  {name,-38} {stack,5}    (skipped)";
-                _log.LogInfo(skipped);
-                return false;
-            }
-
-            int scaled = (int)Math.Round(stack * _config.Multiplier, MidpointRounding.AwayFromZero);
-            if (scaled < 1) scaled = 1;
-            if (_config.MaxPerStack > 0 && scaled > _config.MaxPerStack) scaled = _config.MaxPerStack;
-
-            string line = $"  [{(_config.DryRun ? "DRY" : "MOD")}] {name,-38} {stack,5} -> {scaled}";
-            _log.LogInfo(line);
-
-            if (_config.DryRun || scaled == stack) return false;
-
-            return Il2CppReflect.SetMember(item, "stack", scaled);
+            // Assigned to a local first: BepInEx's logging interpolated string
+            // handler has no alignment overload, the default string one does.
+            string listed = $"  {name,-38} {stack,5}";
+            _log.LogInfo(listed);
         }
     }
 }
